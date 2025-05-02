@@ -2,83 +2,105 @@ import java.util.Scanner;
 import java.util.Stack;
 
 public class KlondikeGame {
-    private Mazo mazo;
-    private Stack<Carta> descarte;
-    private Fundacion[] fundaciones;
-    private Columna[] columnas;
-    private Scanner scanner;
-    
-    public KlondikeGame() {
-        scanner = new Scanner(System.in);
-        inicializarJuego();
+    private static final int NUM_PALOS = 4;
+    private static final int NUM_COLUMNAS = 7;
+    private static final int OPCION_SALIR = 9;
+
+    private final Mazo mazo;
+    private final Stack<Carta> descarte;
+    private final Fundacion[] fundaciones;
+    private final Columna[] columnas;
+    private final Scanner scanner;
+    private boolean juegoActivo;
+
+    public static void main(String[] args) {
+        new KlondikeGame().iniciarJuego();
     }
-    
-    private void inicializarJuego() {
-        mazo = new Mazo();
-        descarte = new Stack<>();
-        
-        fundaciones = new Fundacion[4];
-        for (int i = 0; i < 4; i++) {
+
+    public KlondikeGame() {
+        this.scanner = new Scanner(System.in);
+        this.mazo = new Mazo();
+        this.descarte = new Stack<>();
+        this.fundaciones = inicializarFundaciones();
+        this.columnas = inicializarColumnas();
+    }
+
+    public void iniciarJuego() {
+        juegoActivo = true;
+        repartirCartasIniciales();
+
+        while (juegoActivo) {
+            mostrarInterfazJuego();
+            procesarOpcion(obtenerOpcionUsuario());
+        }
+    }
+
+    private Fundacion[] inicializarFundaciones() {
+        Fundacion[] fundaciones = new Fundacion[NUM_PALOS];
+        for (int i = 0; i < NUM_PALOS; i++) {
             fundaciones[i] = new Fundacion(Palo.values()[i]);
         }
-        
-        columnas = new Columna[7];
-        for (int i = 0; i < 7; i++) {
+        return fundaciones;
+    }
+
+    private Columna[] inicializarColumnas() {
+        Columna[] columnas = new Columna[NUM_COLUMNAS];
+        for (int i = 0; i < NUM_COLUMNAS; i++) {
             columnas[i] = new Columna();
         }
-        
-        repartirCartasIniciales();
+        return columnas;
     }
-    
+
     private void repartirCartasIniciales() {
-        for (int col = 0; col < 7; col++) {
-            for (int fila = 0; fila <= col; fila++) {
+        for (int columna = 0; columna < NUM_COLUMNAS; columna++) {
+            for (int fila = 0; fila <= columna; fila++) {
                 Carta carta = mazo.sacarCarta();
-                if (fila == col) { 
+                if (esUltimaCartaDeColumna(fila, columna)) {
                     carta.voltear();
                 }
-                columnas[col].agregarCarta(carta);
+                columnas[columna].agregarCarta(carta);
             }
         }
     }
-    
-    public void jugar() {
-        boolean salir = false;
-        
-        while (!salir) {
-            mostrarEstadoJuego();
-            mostrarMenu();
-            
-            int opcion = scanner.nextInt();
-            switch (opcion) {
-                case 1: moverMazoADescarte(); break;
-                case 2: moverDescarteAFundacion(); break;
-              
-                case 9: salir = true; break;
-                default: System.out.println("Opción no válida");
-            }
-        }
+
+    private boolean esUltimaCartaDeColumna(int fila, int columna) {
+        return fila == columna;
     }
-    
-    private void mostrarEstadoJuego() {
-        System.out.println("\nBARAJA: [" + (mazo.quedanCartas() ? "?" : " ") + " ?]");
+
+    private void mostrarInterfazJuego() {
+        mostrarEstadoBaraja();
+        mostrarEstadoDescarte();
+        mostrarEstadoFundaciones();
+        mostrarEstadoColumnas();
+        mostrarMenuOpciones();
+    }
+
+    private void mostrarEstadoBaraja() {
+        System.out.printf("\nBARAJA: [%s ?]\n", mazo.quedanCartas() ? "?" : " ");
+    }
+
+    private void mostrarEstadoDescarte() {
         System.out.print("Descarte: ");
         if (descarte.isEmpty()) {
             System.out.println("No hay cartas en el descarte");
         } else {
-            System.out.println(descarte.peek().toString());
-        }
-        
-        for (int i = 0; i < 4; i++) {
-            System.out.println((i+1) + "º Palo: " + fundaciones[i].toString());
-        }
-        
-        for (int i = 0; i < 7; i++) {
-            System.out.println("Columna [" + (i+1) + "]: " + columnas[i].toString());
+            System.out.println(descarte.peek());
         }
     }
-    
-    private void mostrarMenu() {
+
+    private void mostrarEstadoFundaciones() {
+        for (int i = 0; i < NUM_PALOS; i++) {
+            System.out.printf("%dº Palo: %s\n", i + 1, fundaciones[i]);
+        }
+    }
+
+    private void mostrarEstadoColumnas() {
+        for (int i = 0; i < NUM_COLUMNAS; i++) {
+            System.out.printf("Columna [%d]: %s\n", i + 1, columnas[i]);
+        }
+    }
+
+    private void mostrarMenuOpciones() {
         System.out.println("\nOPCIONES>");
         System.out.println("  1. Mover de Baraja a Descarte");
         System.out.println("  2. Mover de Descarte a Palo");
@@ -91,38 +113,50 @@ public class KlondikeGame {
         System.out.println("  9. Salir");
         System.out.print("\nElige una opción [1-9]: ");
     }
-    
+
+    private int obtenerOpcionUsuario() {
+        return scanner.nextInt();
+    }
+
+    private void procesarOpcion(int opcion) {
+        switch (opcion) {
+            case 1 -> moverMazoADescarte();
+            case 2 -> moverDescarteAFundacion();
+            case OPCION_SALIR -> finalizarJuego();
+            default -> System.out.println("Opción no válida");
+        }
+    }
+
     private void moverMazoADescarte() {
-        if (!mazo.quedanCartas()) {
+        if (mazo.estaVacio()) {
             System.out.println("No quedan cartas en la baraja");
             return;
         }
-        
+
         Carta carta = mazo.sacarCarta();
         carta.voltear();
         descarte.push(carta);
     }
-    
+
     private void moverDescarteAFundacion() {
         if (descarte.isEmpty()) {
             System.out.println("No hay cartas en el descarte");
             return;
         }
-        
+
         Carta carta = descarte.peek();
-        int paloIndex = carta.getPalo().ordinal();
-        
-        if (fundaciones[paloIndex].agregarCarta(carta)) {
+        Fundacion fundacionDestino = fundaciones[carta.getPalo().ordinal()];
+
+        if (fundacionDestino.agregarCarta(carta)) {
             descarte.pop();
         } else {
             System.out.println("Movimiento no válido");
         }
     }
-    
 
-    
-    public static void main(String[] args) {
-        KlondikeGame juego = new KlondikeGame();
-        juego.jugar();
+    private void finalizarJuego() {
+        juegoActivo = false;
+        scanner.close();
+        System.out.println("¡Gracias por jugar!");
     }
 }
